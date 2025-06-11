@@ -1,10 +1,10 @@
 import telebot
 import requests
 
-token = "7707639351:AAG_6PbazzZu78knFXA52-87ZNqWbTg4-rk"  
+token = ""  
 
 bot = telebot.TeleBot(token)
-white_list = [1079713104]  
+white_list = []  
 
 def bool_login(chat_id):
     """Проверяет, есть ли ID в белом списке"""
