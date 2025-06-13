@@ -1,125 +1,43 @@
+from main import *
 import requests
+import telebot
 
-class Mystat:
-    def __init__(self, login, password):
-        self.login = login
-        self.password = password
-        self.token = None
+def bool_login(chat_id):
+    """Проверяет, есть ли ID в белом списке"""
+    return chat_id in white_list
 
-    def get_auth(self):
-        """Авторизация и получение токена"""
-        url = "https://mapi.itstep.org/v1/mystat/auth/login"
-        headers = {"Accept": "application/json"}
-        data = {"login": self.login, "password": self.password}
+def get_html(articul):
+    """Отправляет GET-запрос и возвращает обработанные данные о товаре"""
+    url = f"https://alm-basket-cdn-01.geobasket.ru/vol{articul[:4]}/part{articul[:6]}/{articul}/info/ru/card.json"
 
-        response = requests.post(url, headers=headers, json=data)
-        print(f"Статус-код: {response.status_code}")  
+    try:
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        response.raise_for_status()   
+        data = response.json()  
 
-        if response.status_code == 200:
-            try:
-                json_data = response.text
-                self.token = json_data
-                return True
-            except requests.exceptions.JSONDecodeError:
-                print("Ошибка: сервер вернул не JSON-данные.")
-                print("Ответ сервера:", response.text)  
-                return None
-        else:
-            print("Ошибка входа.")
-            return None
-    
-    def get_marks(self):
-        """Получение оценок и нормализация данных"""
-        if not self.token:
-            success = self.get_auth()
-            if not success:
-                return None
+        product_name = data.get("imt_name", "Нет информации")
+        return f"🔹 **{product_name}**"
 
-        url = "https://mapi.itstep.org/v1/mystat/aqtobe/statistic/marks"
-        headers = {"Authorization": f"Bearer {self.token}"}
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка запроса: {e}")
+        return None
 
-        response = requests.get(url, headers=headers)
-        print(f"Статус-код: {response.status_code}")  
+def get_price(articul):
+    """Отправляет GET-запрос и извлекает цены"""
+    url = f"https://alm-basket-cdn-01.geobasket.ru/vol{articul[:4]}/part{articul[:6]}/{articul}/info/price-history.json"
 
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                print(f"Полученные данные (JSON): {data}")  
+    try:
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        response.raise_for_status()  
+        data = response.json()  
 
-                if isinstance(data, list) and len(data) > 0:
-                    marks = [{"Дата": entry.get("mark_date", "Нет даты"), "Оценка": entry.get("mark", "Нет оценки")} for entry in data]
-                    return marks  
-                elif isinstance(data, dict):
-                    return {"Дата": data.get("mark_date", "Нет даты"), "Оценка": data.get("mark", "Нет оценки")}
-                else:
-                    return "Нет данных"
+        prices = [item["price"]["RUB"] for item in data]
 
-            except requests.exceptions.JSONDecodeError:
-                print("Ошибка: сервер вернул не JSON-данные.")
-                print("Ответ сервера:", response.text)  
-                return None  
+        current_price = prices[-1] if prices else "Цена неизвестна"
+        average_price = round(sum(prices) / len(prices), 2) if prices else "Нет данных"
 
-        print("Ошибка при получении оценок.")
-        return None  
+        return {"current_price": current_price, "average_price": average_price}
 
-    def get_schedule(self, schedule_type="month", date_filter="2025-06-04"):
-        """Получение расписания (неделя или месяц)"""
-        if not self.token:
-            success = self.get_auth()
-            if not success:
-                return None
-
-        if schedule_type == "week":
-            url = f"https://mapi.itstep.org/v1/mystat/aqtobe/schedule/get-month?type=week&date_filter={date_filter}"
-        else:
-            url = f"https://mapi.itstep.org/v1/mystat/aqtobe/schedule/get-month?type=month&date_filter={date_filter}"
-
-        headers = {"Authorization": f"Bearer {self.token}"}
-        
-        print(f"Используемый URL: {url}")  
-
-        try:
-            response = requests.get(url, headers=headers)
-            print(f"Статус-код: {response.status_code}")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"Полученные данные (JSON): {data}")
-
-                if "data" in data and isinstance(data["data"], list):
-                    for i in data["data"]:
-                        print(f"{i['date']}, {i['teacher_name']}")  
-
-                    return data 
-                else:
-                    return "Нет данных"
-            else:
-                print("Ошибка при получении расписания. Код:", response.status_code)
-                return None
-
-        except requests.exceptions.JSONDecodeError:
-            print("Ошибка: сервер вернул не JSON-данные.")
-            print("Ответ сервера:", response.text)
-            return None
-        except requests.exceptions.RequestException as e:
-            print(f"Ошибка сети: {e}")
-            return None
-
-         
-
-
-    def calculate_average(self):
-        """Вычисление средней оценки"""
-        marks = self.get_marks()
-        if not marks:
-            return "Нет оценок для расчета"
-
-        try:
-            total_marks = sum(int(entry["Оценка"]) for entry in marks if entry["Оценка"].isdigit())
-            count = len(marks)
-            average = total_marks / count  
-            return f"Средняя оценка: {average:.2f}"  
-        except (KeyError, ValueError):
-            return "Ошибка: неверный формат данных"
-
-
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Ошибка запроса: {e}")
+        return None
