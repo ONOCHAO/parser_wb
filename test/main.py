@@ -1,10 +1,10 @@
 import telebot
 import requests
 
-TOKEN = "7707639351:AAG_6PbazzZu78knFXA52-87ZNqWbTg4-rk"
+TOKEN = ""
 EXCHANGE_RATE = 6.42  
 bot = telebot.TeleBot(TOKEN)
-white_list = [1079713104]
+white_list = []#НАДО ВСТАВИТЬ ID
 
 def bool_login(chat_id):
     """Проверяет, есть ли ID в белом списке"""
