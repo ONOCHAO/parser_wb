@@ -1,9 +1,9 @@
 import telebot
 import requests
 
-token = ""
-
-bot = telebot.TeleBot(token)
+TOKEN = "7707639351:AAG_6PbazzZu78knFXA52-87ZNqWbTg4-rk"
+EXCHANGE_RATE = 6.42  
+bot = telebot.TeleBot(TOKEN)
 white_list = [1079713104]
 
 def bool_login(chat_id):
@@ -41,7 +41,7 @@ def handle_text(message):
         bot.reply_to(message, "Нет доступа!")
 
 def get_rating(articul):
-    """Получает рейтинг товара с API Wildberries"""
+    """Получает рейтинг и количество отзывов о товаре"""
     url = f"https://card.wb.ru/cards/v2/detail?appType=1&curr=rub&dest=269&spp=30&hide_dtype=13&ab_testing=false&lang=ru&nm={articul}"
 
     try:
@@ -50,17 +50,34 @@ def get_rating(articul):
         data = response.json()
 
         if "data" in data and "products" in data["data"]:
-            rating = data["data"]["products"][0].get("reviewRating", "Нет данных")
+            product = data["data"]["products"][0]
+            rating = product.get("reviewRating", "Нет данных")
+            feedback = product.get("feedbacks", "Нет данных")
         else:
-            rating = "Нет данных"
+            rating, feedback = "Нет данных", "Нет данных"
 
-        return rating
+        return rating, feedback  
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Ошибка запроса: {e}")
-        return "❌ Ошибка получения данных!"
+        return "Нет данных", "Нет данных"
 
-    
+def get_otnoch(rating, feedback):
+    """Анализирует соотношение отзывов и рейтинга"""
+    try:
+        otnoch = float(rating) / int(feedback) if feedback != "Нет данных" and feedback != "0" else 0
+        
+        if otnoch < 0.0005:
+            return "✅ Товар отличный!"
+        elif otnoch < 0.005:
+            return "✅ Товар хороший!"
+        elif otnoch < 0.5:
+            return "⚠️ Товар нормальный."
+        else:
+            return "❌ Не советую этот товар."
+    except (ValueError, ZeroDivisionError):
+        return "❌ Недостаточно данных для анализа."
+
 def get_html(articul):
     """Отправляет GET-запрос и возвращает расширенные данные о товаре"""
     url = f"https://alm-basket-cdn-01.geobasket.ru/vol{articul[:4]}/part{articul[:6]}/{articul}/info/ru/card.json"
@@ -73,11 +90,15 @@ def get_html(articul):
         product_name = data.get("imt_name", "Нет информации")    
         description = data.get("description", "Описание отсутствует")  
         image_url = data.get("photo_links", ["Нет изображения"])[0]  
-        rating = get_rating(articul)  
+
+        rating, feedback = get_rating(articul)  
+        recommendation = get_otnoch(rating, feedback)  
 
         return f"""
 🔹 **{product_name}**
 ⭐ Рейтинг: {rating}
+📢 Отзывов: {feedback}
+📊 Оценка качества: {recommendation}
 📜 Описание: {description}
 🖼 Фото: {image_url}
         """
@@ -89,16 +110,14 @@ def get_html(articul):
 def process_number(num):
     """Конвертирует число в строку, удаляет две последние цифры и преобразует обратно"""
     string_price = str(num)  
-    modified_string = string_price[:-3]  
+    modified_string = string_price[:-2]  
     modified_num = int(modified_string)  
-    result = modified_num * 6.42  
+    result = modified_num * EXCHANGE_RATE  
     return result
 
 def get_price(articul):
     """Отправляет GET-запрос, извлекает цену и конвертирует в тенге"""
     url = f"https://alm-basket-cdn-01.geobasket.ru/vol{articul[:4]}/part{articul[:6]}/{articul}/info/price-history.json"
-
-    exchange_rate = 6.42  
 
     try:
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -108,8 +127,8 @@ def get_price(articul):
         prices_rub = [item["price"]["RUB"] for item in data]  
 
         if prices_rub:
-            current_price_kzt = round(process_number(prices_rub[-1]) * exchange_rate, 2)
-            average_price_kzt = round(sum(process_number(p) for p in prices_rub) * exchange_rate / len(prices_rub), 2)  
+            current_price_kzt = round(process_number(prices_rub[-1]), 2)
+            average_price_kzt = round(sum(process_number(p) for p in prices_rub) / len(prices_rub), 2)
 
             if average_price_kzt > current_price_kzt:
                 recommendation = "✅ Цена выгодна, можно приобретать!"
@@ -119,8 +138,7 @@ def get_price(articul):
                 recommendation = "ℹ️ Цены стабильны, решайте сами."
 
         else:
-            current_price_kzt = None
-            average_price_kzt = None
+            current_price_kzt, average_price_kzt = "Нет данных", "Нет данных"
             recommendation = "❌ Нет информации о ценах."
 
         return {
