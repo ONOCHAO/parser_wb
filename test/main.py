@@ -1,6 +1,6 @@
 import telebot
 import requests
-from config import WHITELIST , TOKEN , 
+from config import WHITELIST , TOKEN ,EXCHANGE_RATE
 
 bot = telebot.TeleBot(TOKEN)
 white_list = WHITELIST
