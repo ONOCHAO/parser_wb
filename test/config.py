@@ -1,3 +1,3 @@
-TOKEN = "7707639351:AAG_6PbazzZu78knFXA52-87ZNqWbTg4-rk"
+TOKEN = ""#токен тг бота
 EXCHANGE_RATE = 6.42
-WHITELIST = [1079713104]
+WHITELIST = []#ip пользователя
